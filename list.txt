@@ -1,0 +1,6 @@
+1. RNN
+2. Bidirect RNN
+2. GRU
+2. LSTM
+3. BERT
+4. GPT
