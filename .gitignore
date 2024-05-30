@@ -183,3 +183,4 @@ venv.bak/
 .dmypy.json
 dmypy.
 data/
+.DS_Store
