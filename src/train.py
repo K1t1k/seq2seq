@@ -68,28 +68,35 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 loss_fn = nn.CrossEntropyLoss(reduction="sum")
 loader = data.DataLoader(data.TensorDataset(X, y), shuffle=True, batch_size=BATCH_SIZE)
 
-
 best_model = None
 best_loss = np.inf
 logging.debug("start train")
 for epoch in range(N_EPOCHS):
+    train_losses = []
     model.train()
     for X_batch, y_batch in loader:
         y_pred = model(X_batch)
         loss = loss_fn(y_pred, y_batch)
+        train_losses.append(loss.item())
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+    
+    logging.debug("Epoch %d: [train] Cross-entropy: %.4f" % (epoch, np.mean(train_losses, axis=0)))
     # Validation
+    # TODO добавить валидационную выборку
     model.eval()
+    val_losses = []
     loss = 0
     with torch.no_grad():
         for X_batch, y_batch in loader:
             y_pred = model(X_batch)
-            loss += loss_fn(y_pred, y_batch)
+            l = loss_fn(y_pred, y_batch)
+            val_losses.append(l.item())
+            loss += l
         if loss < best_loss:
             best_loss = loss
             best_model = model.state_dict()
-        logging.debug("Epoch %d: Cross-entropy: %.4f" % (epoch, loss))
+        logging.debug("Epoch %d: [validation] Cross-entropy: %.4f" % (epoch, np.mean(val_losses), axis=0))
 
 torch.save([best_model, char_to_int], "single-char.pth")
