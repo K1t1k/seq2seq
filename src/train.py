@@ -97,6 +97,6 @@ for epoch in range(N_EPOCHS):
         if loss < best_loss:
             best_loss = loss
             best_model = model.state_dict()
-        logging.debug("Epoch %d: [validation] Cross-entropy: %.4f" % (epoch, np.mean(val_losses), axis=0))
+        logging.debug("Epoch %d: [validation] Cross-entropy: %.4f" % (epoch, np.mean(val_losses, axis=0)))
 
 torch.save([best_model, char_to_int], "single-char.pth")
