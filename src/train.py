@@ -1,7 +1,5 @@
 import os
-import sys
 import logging
-import random
 
 import numpy as np
 import torch
@@ -19,11 +17,12 @@ logging.basicConfig(
     force=True,
 )
 
-
+N_EPOCHS = 50
 BATCH_SIZE = 64
 BUFFER_SIZE = 10000
-SEQ_SIZE = 100
+SEQ_SIZE = 64
 DATASET = 'shakespeare'
+
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
 data_dir = os.path.join('../data', DATASET)
@@ -47,36 +46,33 @@ logging.debug('{} unique characters'.format(len(chars)))
 logging.debug('text_as_int length: {}'.format(len(raw_text)))
 
 # prepare the dataset of input to output pairs encoded as integers
-seq_length = 100
 dataX = []
 dataY = []
-for i in range(0, n_chars - seq_length, 1):
-    seq_in = raw_text[i:i + seq_length]
-    seq_out = raw_text[i + seq_length]
+for i in range(0, n_chars - SEQ_SIZE, 1):
+    seq_in = raw_text[i:i + SEQ_SIZE]
+    seq_out = raw_text[i + SEQ_SIZE]
     dataX.append([char_to_int[char] for char in seq_in])
     dataY.append(char_to_int[seq_out])
 n_patterns = len(dataX)
 logging.debug(f"Total Patterns: {n_patterns}")
 
 # reshape X to be [samples, time steps, features]
-X = torch.tensor(dataX, dtype=torch.float32).reshape(n_patterns, seq_length, 1).to(device)
+X = torch.tensor(dataX, dtype=torch.float32).reshape(n_patterns, SEQ_SIZE, 1).to(device)
 X = X / float(n_vocab)
 y = torch.tensor(dataY).to(device)
 logging.debug(f"X.shape: {X.shape}, y.shape: {y.shape}")
 
-n_epochs = 40
-batch_size = 128
 model = CharModel(n_vocab=n_vocab).to(device)
 
-optimizer = optim.Adam(model.parameters())
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 loss_fn = nn.CrossEntropyLoss(reduction="sum")
-loader = data.DataLoader(data.TensorDataset(X, y), shuffle=True, batch_size=batch_size)
+loader = data.DataLoader(data.TensorDataset(X, y), shuffle=True, batch_size=BATCH_SIZE)
 
 
 best_model = None
 best_loss = np.inf
 logging.debug("start train")
-for epoch in range(n_epochs):
+for epoch in range(N_EPOCHS):
     model.train()
     for X_batch, y_batch in loader:
         y_pred = model(X_batch)
