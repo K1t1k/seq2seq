@@ -63,6 +63,8 @@ y = torch.tensor(dataY).to(device)
 logging.debug(f"X.shape: {X.shape}, y.shape: {y.shape}")
 
 model = CharModel(n_vocab=n_vocab).to(device)
+unoptimized_model = model
+model = torch.compile(model) # requires PyTorch 2.0
 
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 loss_fn = nn.CrossEntropyLoss(reduction="sum")
