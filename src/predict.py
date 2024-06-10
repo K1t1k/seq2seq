@@ -4,13 +4,14 @@ import logging
 import torch
 import numpy as np
 
-from models.rnn import CharModel 
- 
-DATASET = 'shakespeare'
-device = torch.device("cuda" if torch.cuda.is_available() else "mps")
+from models.rnn import CharModel
+from settings import Settings
 
-data_dir = os.path.join('../data', DATASET)
-text_path = os.path.join(data_dir, 'input.txt')
+# TODO реализовать предикт через консольную утилиту
+
+device = Settings.DEVICE
+data_dir = os.path.join('../data', Settings.DATASET)
+text_path = os.path.join(data_dir, 'chehov.txt')
 
 
 raw_text = open(text_path, mode='r').read()
@@ -18,26 +19,23 @@ logging.debug('Length of text: {} characters'.format(len(raw_text)))
 
 chars = sorted(list(set(raw_text)))
 char_to_int = dict((c, i) for i, c in enumerate(chars))
- 
+
 # summarize the loaded data
-n_chars = len(raw_text)
-n_vocab = len(chars)
-seq_length = 100
+n_chars, n_vocab = len(raw_text), len(chars)
 
 model = CharModel(n_vocab=n_vocab)
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Generation using the trained model
 best_model, char_to_int = torch.load("single-char.pth")
 n_vocab = len(char_to_int)
 int_to_char = dict((i, c) for c, i in char_to_int.items())
 model.load_state_dict(best_model)
- 
+
 # randomly generate a prompt
 
 raw_text = raw_text.lower()
-start = np.random.randint(0, len(raw_text)-seq_length)
-prompt = raw_text[start:start+seq_length]
+start = np.random.randint(0, len(raw_text)-Settings.SEQ_SIZE)
+prompt = raw_text[start:start+Settings.SEQ_SIZE]
 pattern = [char_to_int[c] for c in prompt]
 
 model.to(device)

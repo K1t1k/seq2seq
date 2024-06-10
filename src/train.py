@@ -9,6 +9,7 @@ from torch.utils import data
 from torch import nn
 
 from models.rnn import CharModel
+from settings import Settings
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -17,67 +18,55 @@ logging.basicConfig(
     force=True,
 )
 
-N_EPOCHS = 50
-BATCH_SIZE = 64
-BUFFER_SIZE = 10000
-SEQ_SIZE = 64
-DATASET = 'shakespeare'
+# TODO работу с данными реализовать в классе Dataset
+# TODO подавать предсказывать 1 символ по 1 символу
+# TODO использовать hidden state
 
-device = torch.device("cuda" if torch.cuda.is_available() else "mps")
-
-data_dir = os.path.join('../data', DATASET)
-text_path = os.path.join(data_dir, 'input.txt')
+device = Settings.DEVICE
+data_dir = os.path.join('../data', Settings.DATASET)
+text_path = os.path.join(data_dir, 'chehov.txt')
 
 
 raw_text = open(text_path, mode='r').read()
 logging.debug('Length of text: {} characters'.format(len(raw_text)))
 
-
 chars = sorted(list(set(raw_text)))
 char_to_int = dict((c, i) for i, c in enumerate(chars))
- 
-# summarize the loaded data
-n_chars = len(raw_text)
-n_vocab = len(chars)
-print("Total Characters: ", n_chars)
-print("Total Vocab: ", n_vocab)
-
-logging.debug('{} unique characters'.format(len(chars)))
-logging.debug('text_as_int length: {}'.format(len(raw_text)))
+n_chars, n_vocab = len(raw_text), len(chars)
 
 # prepare the dataset of input to output pairs encoded as integers
-dataX = []
-dataY = []
-for i in range(0, n_chars - SEQ_SIZE, 1):
-    seq_in = raw_text[i:i + SEQ_SIZE]
-    seq_out = raw_text[i + SEQ_SIZE]
+dataX, dataY = [], []
+for i in range(0, n_chars - Settings.SEQ_SIZE, 1):
+    seq_in = raw_text[i:i + Settings.SEQ_SIZE]
+    seq_out = raw_text[i + Settings.SEQ_SIZE]
     dataX.append([char_to_int[char] for char in seq_in])
     dataY.append(char_to_int[seq_out])
 n_patterns = len(dataX)
-logging.debug(f"Total Patterns: {n_patterns}")
 
 # reshape X to be [samples, time steps, features]
-X = torch.tensor(dataX, dtype=torch.float32).reshape(n_patterns, SEQ_SIZE, 1).to(device)
+X = torch.tensor(dataX, dtype=torch.float32).reshape(n_patterns, Settings.SEQ_SIZE, 1).to(device)
 X = X / float(n_vocab)
 y = torch.tensor(dataY).to(device)
 logging.debug(f"X.shape: {X.shape}, y.shape: {y.shape}")
+loader_train = data.DataLoader(data.TensorDataset(X[:int(len(X) * .9)], y[:int(len(X) * .9)]), shuffle=True, batch_size=Settings.BATCH_SIZE)
+loader_val = data.DataLoader(data.TensorDataset(X[int(len(X) * .9):], y[int(len(X) * .9):]), shuffle=True, batch_size=Settings.BATCH_SIZE)
 
-model = CharModel(n_vocab=n_vocab).to(device)
+model = CharModel(n_vocab=n_vocab, hidden_size=Settings.HIDDEN_SIZE, n_layer=Settings.N_LAYER).to(device)
 unoptimized_model = model
 model = torch.compile(model) # requires PyTorch 2.0
+optimizer = optim.Adam(model.parameters(), lr=Settings.LR)
+loss_fn = nn.CrossEntropyLoss()  # reduction="sum")
 
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-loss_fn = nn.CrossEntropyLoss(reduction="sum")
-loader = data.DataLoader(data.TensorDataset(X, y), shuffle=True, batch_size=BATCH_SIZE)
 
 best_model = None
 best_loss = np.inf
+hidden_state = None
 logging.debug("start train")
-for epoch in range(N_EPOCHS):
+for epoch in range(Settings.N_EPOCHS):
     train_losses = []
     model.train()
-    for X_batch, y_batch in loader:
-        y_pred = model(X_batch)
+    for X_batch, y_batch in loader_train:
+        y_pred, hidden_state = model(X_batch, hidden_state)
         loss = loss_fn(y_pred, y_batch)
         train_losses.append(loss.item())
         optimizer.zero_grad()
@@ -85,14 +74,13 @@ for epoch in range(N_EPOCHS):
         optimizer.step()
     
     logging.debug("Epoch %d: [train] Cross-entropy: %.4f" % (epoch, np.mean(train_losses, axis=0)))
-    # Validation
-    # TODO добавить валидационную выборку
     model.eval()
     val_losses = []
     loss = 0
+    hidden_state = None
     with torch.no_grad():
-        for X_batch, y_batch in loader:
-            y_pred = model(X_batch)
+        for X_batch, y_batch in loader_val:
+            y_pred, hidden_state = model(X_batch, hidden_state)
             l = loss_fn(y_pred, y_batch)
             val_losses.append(l.item())
             loss += l
